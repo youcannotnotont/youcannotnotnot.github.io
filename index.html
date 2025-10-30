@@ -3,12 +3,21 @@
 <head>
   <meta charset="utf-8">
   <title>🛰️ Jetson GPS Live Tracker (Leaflet + OSM)</title>
+
+  <!-- 手機 viewport：允許縮放 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes">
+
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <style>
-    html, body, #map { height: 100%; margin: 0; padding: 0; }
+    html, body, #map {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      touch-action: pan-x pan-y; /* 讓瀏覽器別阻擋兩指手勢 */
+    }
   </style>
 </head>
 <body>
@@ -19,33 +28,41 @@
     firebase.initializeApp(firebaseConfig);
     const dbRef = firebase.database().ref("gps_data/current");
 
-    // 先建立地圖，但不設定中心點；等第一筆資料再置中
-    const map = L.map('map');
+    // === 初始化 Leaflet 地圖（啟用觸控 + 滾輪縮放 + 按鈕） ===
+    const ZOOM = 18;
+    const map = L.map('map', {
+      zoomControl: true,      // 右下角 +/-
+      touchZoom: true,        // 允許雙指縮放
+      scrollWheelZoom: true,  // ✅ 允許滑鼠滾輪縮放
+      tap: false,             // iOS 兼容
+      keyboard: true          // 鍵盤 +/- 也可縮放
+    });
+
+    // （可選）細調滾輪縮放手感
+    map.options.wheelDebounceTime = 40;     // 預設 40ms
+    map.options.wheelPxPerZoomLevel = 60;   // 預設 60px
+
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'
+      maxZoom: 20,
+      minZoom: 3,
+      attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
-    let marker = null;       // 第一次資料到才建立
-    const ZOOM = 19;
+    let marker = null;
 
     // === Firebase 實時監聽 ===
     dbRef.on("value", (snapshot) => {
       const data = snapshot.val();
       if (!data || typeof data.latitude !== "number" || typeof data.longitude !== "number") return;
-
-      const lat = data.latitude;
-      const lon = data.longitude;
+      const lat = data.latitude, lon = data.longitude;
 
       if (!marker) {
-        // 第一次：設中心與縮放，建立標記點
-        map.setView([lat, lon], ZOOM);
+        map.setView([lat, lon], ZOOM);                         // 第一次：置中 + 設定縮放
         marker = L.marker([lat, lon]).addTo(map).bindPopup("定位中...");
       } else {
-        // 之後：更新標記並保持縮放與置中
         marker.setLatLng([lat, lon]);
-        map.panTo([lat, lon]); // 若想固定縮放也可用 setView([lat, lon], ZOOM)
+        map.panTo([lat, lon]);                                 // 後續：置中（不改縮放）
       }
-
       marker.setPopupContent(`Lat: ${lat.toFixed(6)}, Lon: ${lon.toFixed(6)}`);
     });
   </script>
