@@ -8,44 +8,45 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <style>
-    html, body, #map {
-      height: 100%;
-      margin: 0;
-      padding: 0;
-    }
+    html, body, #map { height: 100%; margin: 0; padding: 0; }
   </style>
 </head>
 <body>
   <div id="map"></div>
   <script>
     // === Firebase 設定 ===
-    const firebaseConfig = {
-      databaseURL: "https://gpsmap-fe035-default-rtdb.firebaseio.com/"
-    };
+    const firebaseConfig = { databaseURL: "https://gpsmap-fe035-default-rtdb.firebaseio.com/" };
     firebase.initializeApp(firebaseConfig);
     const dbRef = firebase.database().ref("gps_data/current");
 
-    // === 初始化 Leaflet 地圖 ===
-    let map = L.map('map').setView([23.6978, 120.9605], 18);
+    // 先建立地圖，但不設定中心點；等第一筆資料再置中
+    const map = L.map('map');
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors'
+      maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
-    // 標記點
-    let marker = L.marker([23.6978, 120.9605]).addTo(map);
-    marker.bindPopup("等待 GPS 資料...").openPopup();
+    let marker = null;       // 第一次資料到才建立
+    const ZOOM = 19;
 
     // === Firebase 實時監聽 ===
     dbRef.on("value", (snapshot) => {
       const data = snapshot.val();
-      if (!data) return;
+      if (!data || typeof data.latitude !== "number" || typeof data.longitude !== "number") return;
+
       const lat = data.latitude;
       const lon = data.longitude;
 
-      marker.setLatLng([lat, lon]);
-      map.setView([lat, lon],18);
-      marker.setPopupContent(`📍 Lat: ${lat.toFixed(6)}, Lon: ${lon.toFixed(6)}`);
+      if (!marker) {
+        // 第一次：設中心與縮放，建立標記點
+        map.setView([lat, lon], ZOOM);
+        marker = L.marker([lat, lon]).addTo(map).bindPopup("定位中...");
+      } else {
+        // 之後：更新標記並保持縮放與置中
+        marker.setLatLng([lat, lon]);
+        map.panTo([lat, lon]); // 若想固定縮放也可用 setView([lat, lon], ZOOM)
+      }
+
+      marker.setPopupContent(`Lat: ${lat.toFixed(6)}, Lon: ${lon.toFixed(6)}`);
     });
   </script>
 </body>
