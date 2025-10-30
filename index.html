@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>🛰️ Jetson GPS Live Tracker (Leaflet + OSM)</title>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <style>
+    html, body, #map {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <script>
+    // === Firebase 設定 ===
+    const firebaseConfig = {
+      databaseURL: "https://gpsmap-fe035-default-rtdb.firebaseio.com/"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const dbRef = firebase.database().ref("gps_data/current");
+
+    // === 初始化 Leaflet 地圖 ===
+    let map = L.map('map').setView([23.6978, 120.9605], 18);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    // 標記點
+    let marker = L.marker([23.6978, 120.9605]).addTo(map);
+    marker.bindPopup("等待 GPS 資料...").openPopup();
+
+    // === Firebase 實時監聽 ===
+    dbRef.on("value", (snapshot) => {
+      const data = snapshot.val();
+      if (!data) return;
+      const lat = data.latitude;
+      const lon = data.longitude;
+
+      marker.setLatLng([lat, lon]);
+      map.setView([lat, lon],18);
+      marker.setPopupContent(`📍 Lat: ${lat.toFixed(6)}, Lon: ${lon.toFixed(6)}`);
+    });
+  </script>
+</body>
+</html>
